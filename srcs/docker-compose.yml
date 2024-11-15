@@ -1,0 +1,129 @@
+services:
+  mariadb:
+    container_name: mariadb
+    volumes:
+      - mariadb:/var/lib/mysql
+    networks:
+      - inception
+    build:
+      context: requirements/mariadb
+      dockerfile: Dockerfile
+    env_file: .env
+    restart: on-failure # "on-failure", container will be restarted
+    expose:
+      - "3306"
+  nginx:           # with TLSv.1.2
+    container_name: nginx # name of the container
+    volumes:
+      - wordpress:/var/www/wordpress
+    networks:
+      - inception
+    depends_on:
+      - wordpress
+    build:
+      context: requirements/nginx
+      dockerfile: Dockerfile
+    env_file: .env
+    ports:
+      - "443:443"
+    restart: on-failure
+  adminer:
+    container_name: adminer
+    networks:
+      - inception
+    build:
+      context: requirements/bonus/adminer
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    depends_on:
+      - mariadb
+    env_file: .env
+    restart: on-failure
+  site:
+    container_name: site
+    networks:
+      - inception
+    build:
+      context: requirements/bonus/site
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+    env_file: .env
+    restart: on-failure
+  discord:
+    container_name: discord
+    networks:
+      - inception
+    build:
+      context: requirements/bonus/discord
+      dockerfile: Dockerfile
+    env_file: .env
+    restart: on-failure
+  redis:
+    container_name: redis
+    env_file:
+      - .env
+    networks:
+      - inception
+    build: ./requirements/bonus/redis
+    restart: on-failure
+    expose:
+      - 6379
+  ftp:
+    build:
+      context: requirements/bonus/ftp
+      dockerfile: Dockerfile
+      args:
+        - FTP_USER=${FTP_USER}
+        - FTP_PASSWORD=${FTP_PASSWORD}
+    container_name: ftp
+    volumes:
+      - wordpress:/home/tbarret/data/wordpress
+    depends_on:
+      - wordpress
+    ports:
+      - "21:21"
+      - "10000-10100:10000-10100"
+    networks:
+      - inception
+    env_file: .env
+    restart: unless-stopped
+  wordpress:
+    container_name: wordpress
+    env_file: .env
+    volumes:
+      - wordpress:/var/www/wordpress
+    networks:
+      - inception
+    build:
+      context: requirements/wordpress
+      dockerfile: Dockerfile
+    depends_on:    # wordpress will be started after mariadb
+      - mariadb
+      - redis
+    restart: on-failure
+    expose:
+      - "9000"
+
+
+## VOLUME CHECK
+
+volumes:
+  wordpress:
+    driver: local
+    driver_opts:
+      type: 'none'
+      o: 'bind'
+      device: '/home/tbarret/data/wordpress'
+  mariadb:
+    driver: local
+    driver_opts:
+      type: 'none'
+      o: 'bind'
+      device: '/home/tbarret/data/mariadb'
+
+#network part
+networks:
+  inception:
+    driver: bridge
